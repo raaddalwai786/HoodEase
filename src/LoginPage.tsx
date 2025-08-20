@@ -1,6 +1,5 @@
-"use client";
-
-import { useState, useRef, Fragment } from "react";
+import { useState } from "react";
+import React from "react";
 import ProfileCreation from "./ProfileCreation";
 
 export default function LoginPage() {
@@ -17,104 +16,12 @@ export default function LoginPage() {
   // inline message
   const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
 
-  // ---------- Refs for auto-focus ----------
-  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const aadhaarRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const aadhaarOtpRefs = useRef<Array<HTMLInputElement | null>>([]);
-
-  // ---------- PHONE OTP (6 boxes) ----------
-  const handleOtpChange = (i: number, val: string) => {
-    const v = val.replace(/\D/g, "").slice(0, 1);
-    const next = [...otp];
-    next[i] = v;
-    setOtp(next);
-    if (v && i < otpRefs.current.length - 1) {
-      otpRefs.current[i + 1]?.focus();
-    }
-  };
-  const handleOtpKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && otp[i] === "" && i > 0) {
-      otpRefs.current[i - 1]?.focus();
-    }
-    if (e.key === "ArrowLeft" && i > 0) otpRefs.current[i - 1]?.focus();
-    if (e.key === "ArrowRight" && i < otpRefs.current.length - 1) otpRefs.current[i + 1]?.focus();
-  };
-  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const digits = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6).split("");
-    if (!digits.length) return;
-    const next = [...otp];
-    for (let i = 0; i < 6; i++) next[i] = digits[i] || "";
-    setOtp(next);
-    const focusIndex = Math.min(digits.length, 5);
-    otpRefs.current[focusIndex]?.focus();
-  };
-
-  // ---------- AADHAAR NUMBER (3 boxes x 4) ----------
-  const handleAadhaarChange = (i: number, val: string) => {
-    const v = val.replace(/\D/g, "").slice(0, 4);
-    const next = [...aadhaar];
-    next[i] = v;
-    setAadhaar(next);
-    if (v.length === 4 && i < aadhaarRefs.current.length - 1) {
-      aadhaarRefs.current[i + 1]?.focus();
-    }
-  };
-  const handleAadhaarKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && aadhaar[i].length === 0 && i > 0) {
-      aadhaarRefs.current[i - 1]?.focus();
-    }
-    if (e.key === "ArrowLeft" && i > 0) aadhaarRefs.current[i - 1]?.focus();
-    if (e.key === "ArrowRight" && i < aadhaarRefs.current.length - 1) aadhaarRefs.current[i + 1]?.focus();
-  };
-  const handleAadhaarPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const digits = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 12);
-    if (!digits) return;
-    const g1 = digits.slice(0, 4);
-    const g2 = digits.slice(4, 8);
-    const g3 = digits.slice(8, 12);
-    setAadhaar([g1, g2, g3]);
-    const focusIndex = digits.length <= 4 ? 0 : digits.length <= 8 ? 1 : 2;
-    aadhaarRefs.current[Math.min(focusIndex, 2)]?.focus();
-  };
-
-  // ---------- AADHAAR OTP (6 boxes) ----------
-  const handleAadhaarOtpChange = (i: number, val: string) => {
-    const v = val.replace(/\D/g, "").slice(0, 1);
-    const next = [...aadhaarOtp];
-    next[i] = v;
-    setAadhaarOtp(next);
-    if (v && i < aadhaarOtpRefs.current.length - 1) {
-      aadhaarOtpRefs.current[i + 1]?.focus();
-    }
-  };
-  const handleAadhaarOtpKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && aadhaarOtp[i] === "" && i > 0) {
-      aadhaarOtpRefs.current[i - 1]?.focus();
-    }
-    if (e.key === "ArrowLeft" && i > 0) aadhaarOtpRefs.current[i - 1]?.focus();
-    if (e.key === "ArrowRight" && i < aadhaarOtpRefs.current.length - 1) aadhaarOtpRefs.current[i + 1]?.focus();
-  };
-  const handleAadhaarOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-    e.preventDefault();
-    const digits = (e.clipboardData.getData("text") || "").replace(/\D/g, "").slice(0, 6).split("");
-    if (!digits.length) return;
-    const next = [...aadhaarOtp];
-    for (let i = 0; i < 6; i++) next[i] = digits[i] || "";
-    setAadhaarOtp(next);
-    const focusIndex = Math.min(digits.length, 5);
-    aadhaarOtpRefs.current[focusIndex]?.focus();
-  };
-
-  // ---------- submit handlers ----------
+  // handlers (simplified, with inline messages instead of alerts)
   const handleSendOtp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone) return;
     setMessage({ type: "info", text: `OTP sent to ${phone}` });
     setOtpSent(true);
-    // focus the first OTP box
-    setTimeout(() => otpRefs.current[0]?.focus(), 0);
   };
 
   const handleVerifyOtp = (e: React.FormEvent) => {
@@ -137,8 +44,6 @@ export default function LoginPage() {
     }
     setMessage({ type: "info", text: `Aadhaar OTP sent` });
     setAadhaarOtpSent(true);
-    // focus first Aadhaar OTP box
-    setTimeout(() => aadhaarOtpRefs.current[0]?.focus(), 0);
   };
 
   const handleVerifyAadhaarOtp = (e: React.FormEvent) => {
@@ -228,15 +133,15 @@ export default function LoginPage() {
                   {otp.map((digit, index) => (
                     <input
                       key={index}
-                      ref={(el) => (otpRefs.current[index] = el)}
                       type="tel"
                       inputMode="numeric"
                       maxLength={1}
                       value={digit}
-                      onChange={(e) => handleOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      onPaste={index === 0 ? handleOtpPaste : undefined}
-                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => {
+                        const next = [...otp];
+                        next[index] = e.target.value;
+                        setOtp(next);
+                      }}
                       className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 text-center text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full"
                     />
                   ))}
@@ -258,23 +163,23 @@ export default function LoginPage() {
                 <span className="mb-2 block text-sm font-medium text-white/80">Enter Aadhaar Number</span>
                 <div className="flex items-center justify-between gap-2 sm:gap-3">
                   {aadhaar.map((group, index) => (
-                    <Fragment key={index}>
-                      <input
-                        ref={(el) => (aadhaarRefs.current[index] = el)}
-                        type="tel"
-                        inputMode="numeric"
-                        maxLength={4}
-                        value={group}
-                        onChange={(e) => handleAadhaarChange(index, e.target.value)}
-                        onKeyDown={(e) => handleAadhaarKeyDown(index, e)}
-                        onPaste={index === 0 ? handleAadhaarPaste : undefined}
-                        onFocus={(e) => e.currentTarget.select()}
-                        placeholder={index === 0 ? "1234" : index === 1 ? "5678" : "9012"}
-                        className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 px-3 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full tracking-widest text-center"
-                      />
-                      {index < 2 && <span className="text-white text-xl font-bold">-</span>}
-                    </Fragment>
-                  ))}
+  <React.Fragment key={index}>
+    <input
+      type="tel"
+      inputMode="numeric"
+      maxLength={4}
+      value={group}
+      onChange={(e) => {
+        const next = [...aadhaar];
+        next[index] = e.target.value;
+        setAadhaar(next);
+      }}
+      placeholder={index === 0 ? "1234" : index === 1 ? "5678" : "9012"}
+      className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 px-3 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full tracking-widest text-center"
+    />
+    {index < 2 && <span className="text-white text-xl font-bold">-</span>}
+  </React.Fragment>
+))}
                 </div>
               </label>
               <button
@@ -295,15 +200,15 @@ export default function LoginPage() {
                   {aadhaarOtp.map((digit, index) => (
                     <input
                       key={index}
-                      ref={(el) => (aadhaarOtpRefs.current[index] = el)}
                       type="tel"
                       inputMode="numeric"
                       maxLength={1}
                       value={digit}
-                      onChange={(e) => handleAadhaarOtpChange(index, e.target.value)}
-                      onKeyDown={(e) => handleAadhaarOtpKeyDown(index, e)}
-                      onPaste={index === 0 ? handleAadhaarOtpPaste : undefined}
-                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => {
+                        const next = [...aadhaarOtp];
+                        next[index] = e.target.value;
+                        setAadhaarOtp(next);
+                      }}
                       className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 text-center text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full"
                     />
                   ))}
