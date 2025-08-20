@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import ServiceInfo from "./ServiceInfo";
@@ -208,7 +208,7 @@ function MapLibrePin({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapObj = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
-  const clickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & maplibregl.EventData) => void) | null>(null);
+  const clickHandlerRef = useRef<((e: maplibregl.MapMouseEvent) => void) | null>(null);
 
   // init map once
   useEffect(() => {
@@ -235,10 +235,13 @@ function MapLibrePin({
           } as any,
         ],
       } as any,
-      attributionControl: true,
+      // IMPORTANT: MapLibre expects false or an options object, not true
+      attributionControl: false,
     });
 
+    // Controls
     mapObj.current.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    mapObj.current.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
 
     return () => {
       if (mapObj.current) {
@@ -282,7 +285,7 @@ function MapLibrePin({
     const m = mapObj.current;
     if (!m) return;
     if (enableClickToPin && !clickHandlerRef.current) {
-      const handler = (e: maplibregl.MapMouseEvent & maplibregl.EventData) => {
+      const handler = (e: maplibregl.MapMouseEvent) => {
         const p = { lat: e.lngLat.lat, lon: e.lngLat.lng };
         onPin(p);
       };
@@ -518,7 +521,7 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
                       </label>
                       <button
                         type="button"
-                        onClick={() => setPhoto(null)}
+                        onClick={removePhoto}
                         className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/30"
                       >
                         Remove
