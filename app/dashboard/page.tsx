@@ -72,16 +72,23 @@ function Tabs({
   children: React.ReactNode;
 }) {
   const [value, setValue] = useState(defaultValue);
-  // @ts-expect-error – we’re augmenting children elements with private props for this Tabs API
-  const enhanced = React.Children.map(children, (child) =>
-    // @ts-expect-error – runtime guard on child.type; TS can’t refine ReactElement types here
-    typeof child?.type === "function" || typeof child?.type === "object"
-      ? // @ts-expect-error – cloneElement with additional private props not declared on child’s props
-        React.cloneElement(child, { __tabsValue: value, __setTabsValue: setValue })
-      : child
-  );
+
+  type TabChildProps = {
+    __tabsValue?: string;
+    __setTabsValue?: (v: string) => void;
+  };
+
+  const enhanced = React.Children.map(children, (child) => {
+    if (!React.isValidElement(child)) return child;
+    return React.cloneElement(child as React.ReactElement<TabChildProps>, {
+      __tabsValue: value,
+      __setTabsValue: setValue,
+    });
+  });
+
   return <div>{enhanced}</div>;
 }
+
 function TabsList({
   className = "",
   children,
