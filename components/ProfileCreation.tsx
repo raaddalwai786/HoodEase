@@ -1,9 +1,15 @@
-
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import maplibregl, {
+  type StyleSpecification,
+  type RasterSourceSpecification,
+  type RasterLayerSpecification,
+  MapMouseEvent,
+  EventData,
+} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import Image from "next/image";
 import ServiceInfo from "./ServiceInfo";
 
 /**
@@ -92,7 +98,7 @@ export function parseLatLon(latStr: string, lonStr: string): GeoPoint | null {
 }
 
 // ---------- Robust fetch helper (prevents uncaught rejections) ----------
-async function fetchJSON(url: string, opts: RequestInit = {}, timeoutMs = 8000): Promise<any | null> {
+async function fetchJSON(url: string, opts: RequestInit = {}, timeoutMs = 8000): Promise<unknown | null> {
   const ctrl = new AbortController();
   const id = window.setTimeout(() => ctrl.abort(), timeoutMs);
   try {
@@ -155,6 +161,20 @@ function PhotoDrop({ onPick }: { onPick: (file?: File) => void }) {
 // ---------- Geocoding (Mapbox preferred, Nominatim fallback) ----------
 export type PlaceSuggestion = { id: string; name: string; subtitle?: string; center: GeoPoint };
 
+type MapboxFeature = {
+  id: string;
+  text?: string;
+  place_name?: string;
+  center: [number, number];
+};
+
+type NominatimResult = {
+  place_id: number | string;
+  display_name: string;
+  lat: string;
+  lon: string;
+};
+
 async function searchPlaces(q: string): Promise<PlaceSuggestion[]> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string | undefined;
   const trimmed = q.trim();
@@ -162,20 +182,20 @@ async function searchPlaces(q: string): Promise<PlaceSuggestion[]> {
   // Try Mapbox first (if token present), then fallback to Nominatim.
   if (token) {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(trimmed)}.json?access_token=${token}&limit=7&autocomplete=true&language=en`;
-    const data = await fetchJSON(url);
-    if (data?.features?.length) {
-      return data.features.map((f: any) => ({
+    const data = (await fetchJSON(url)) as { features?: MapboxFeature[] } | null;
+    if (data?.features && Array.isArray(data.features) && data.features.length > 0) {
+      return data.features.map((f: MapboxFeature) => ({
         id: f.id,
-        name: f.text || f.place_name,
+        name: f.text || f.place_name || "",
         subtitle: f.place_name,
         center: { lat: f.center[1], lon: f.center[0] },
       }));
     }
   }
   const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=jsonv2&addressdetails=1&limit=7`;
-  const data = await fetchJSON(url, { headers: { Accept: "application/json" } });
+  const data = (await fetchJSON(url, { headers: { Accept: "application/json" } })) as NominatimResult[] | null;
   if (!data) return [];
-  return (data || []).map((item: any) => ({
+  return (data || []).map((item: NominatimResult) => ({
     id: String(item.place_id),
     name: item.display_name?.split(",")[0] ?? item.display_name,
     subtitle: item.display_name,
@@ -187,12 +207,12 @@ async function reverseGeocode(point: GeoPoint): Promise<string | null> {
   const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN as string | undefined;
   if (token) {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${point.lon},${point.lat}.json?access_token=${token}&limit=1`;
-    const data = await fetchJSON(url);
+    const data = (await fetchJSON(url)) as { features?: Array<{ place_name?: string }> } | null;
     const label = data?.features?.[0]?.place_name;
     if (label) return label;
   }
   const url = `https://nominatim.openstreetmap.org/reverse?lat=${point.lat}&lon=${point.lon}&format=jsonv2`;
-  const data = await fetchJSON(url, { headers: { Accept: "application/json" } });
+  const data = (await fetchJSON(url, { headers: { Accept: "application/json" } })) as { display_name?: string } | null;
   return data?.display_name ?? null;
 }
 
@@ -211,33 +231,36 @@ function MapLibrePin({
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapObj = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
-  const clickHandlerRef = useRef<((e: maplibregl.MapMouseEvent & maplibregl.EventData) => void) | null>(null);
+  const clickHandlerRef = useRef<((e: MapMouseEvent & EventData) => void) | null>(null);
 
   // init map once
   useEffect(() => {
     if (!mapRef.current || mapObj.current) return;
+
+    const rasterSource: RasterSourceSpecification = {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors",
+    };
+
+    const rasterLayer: RasterLayerSpecification = {
+      id: "osm",
+      type: "raster",
+      source: "osm",
+    };
+
+    const style: StyleSpecification = {
+      version: 8,
+      sources: { osm: rasterSource },
+      layers: [rasterLayer],
+    };
+
     mapObj.current = new maplibregl.Map({
       container: mapRef.current,
       center: [center.lon, center.lat],
       zoom: 4,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            tileSize: 256,
-            attribution: "© OpenStreetMap contributors",
-          } as any,
-        },
-        layers: [
-          {
-            id: "osm",
-            type: "raster",
-            source: "osm",
-          } as any,
-        ],
-      } as any,
+      style,
       attributionControl: true,
     });
 
@@ -249,7 +272,7 @@ function MapLibrePin({
         mapObj.current = null;
       }
     };
-  }, []);
+  }, []); // init once
 
   // center changes
   useEffect(() => {
@@ -278,14 +301,15 @@ function MapLibrePin({
       markerRef.current.remove();
       markerRef.current = null;
     }
-  }, [marker?.lat, marker?.lon]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marker?.lat, marker?.lon]); // ref object itself is stable
 
   // click-to-pin toggle
   useEffect(() => {
     const m = mapObj.current;
     if (!m) return;
     if (enableClickToPin && !clickHandlerRef.current) {
-      const handler = (e: maplibregl.MapMouseEvent & maplibregl.EventData) => {
+      const handler = (e: MapMouseEvent & EventData) => {
         const p = { lat: e.lngLat.lat, lon: e.lngLat.lng };
         onPin(p);
       };
@@ -364,6 +388,15 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
     setMsg({ type: "info", text: "Profile saved. Now choose your location." });
   };
 
+  // Memoized selection setter (used by map click/drag and search/GPS)
+  const setSelection = useCallback(async (point: GeoPoint, source: "search" | "geolocation" | "manual") => {
+    const label = (await reverseGeocode(point)) || `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
+    const data = { label, position: point, source };
+    setSelected(data);
+    setCoords(point);
+    setMsg({ type: "success", text: source === "manual" ? "Pinned location set." : "Location selected." });
+  }, []);
+
   // Search debounce
   const debounceRef = useRef<number | null>(null);
   useEffect(() => {
@@ -388,20 +421,13 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
     };
   }, [query]);
 
-  const setSelection = async (point: GeoPoint, source: "search" | "geolocation" | "manual") => {
-    const label = (await reverseGeocode(point)) || `${point.lat.toFixed(5)}, ${point.lon.toFixed(5)}`;
-    const data = { label, position: point, source };
-    setSelected(data);
-    setCoords(point);
-    setMsg({ type: "success", text: source === "manual" ? "Pinned location set." : "Location selected." });
-  };
-
   const chooseSuggestion = (s: PlaceSuggestion) => {
     setSelection(s.center, "search");
     setManualMode(false);
   };
 
-  const useMyLocation = () => {
+  // (Renamed to avoid “Hooks must be called at top level” error)
+  const getMyLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setMsg({ type: "error", text: "Geolocation not supported by this browser." });
       return;
@@ -422,19 +448,23 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
       },
       { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
     );
-  };
+  }, [setSelection]);
 
   // Auto geolocation when entering step 2
   useEffect(() => {
     if (step !== 2 || coords) return;
     const isSecure = typeof window !== "undefined" ? window.isSecureContext : true;
     if (!isSecure) {
-      setMsg({ type: "info", text: "Geolocation requires HTTPS or localhost. Use search or tap 'Use my current location' after enabling HTTPS." });
+      setMsg({
+        type: "info",
+        text:
+          "Geolocation requires HTTPS or localhost. Use search or tap 'Use my current location' after enabling HTTPS.",
+      });
       setAllowManual(true);
       return;
     }
-    useMyLocation();
-  }, [step, coords]);
+    getMyLocation();
+  }, [step, coords, getMyLocation]);
 
   // Safety timeout in case geolocation prompt hangs or user ignores it
   useEffect(() => {
@@ -467,7 +497,9 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
 
     // Optional: inform parent if provided
     if (typeof onComplete === "function") {
-      try { onComplete(payload); } catch {}
+      try {
+        onComplete(payload);
+      } catch {}
     }
 
     // Inline success and move to next component inline (like LoginPage -> ProfileCreation)
@@ -511,8 +543,15 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
                 <span className="block text-sm font-medium text-white/80">Profile photo</span>
                 {photoUrl ? (
                   <div className="flex items-center gap-4">
-                    <div className="h-24 w-24 overflow-hidden rounded-2xl ring-2 ring-white/30">
-                      <img src={photoUrl} alt="Profile preview" className="h-full w-full object-cover" />
+                    <div className="relative h-24 w-24 overflow-hidden rounded-2xl ring-2 ring-white/30">
+                      <Image
+                        src={photoUrl}
+                        alt="Profile preview"
+                        fill
+                        className="object-cover"
+                        unoptimized
+                        priority
+                      />
                     </div>
                     <div className="flex gap-2">
                       <label className="cursor-pointer rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-purple-700 shadow hover:bg-fuchsia-50">
@@ -521,7 +560,7 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
                       </label>
                       <button
                         type="button"
-                        onClick={() => setPhoto(null)}
+                        onClick={removePhoto}
                         className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/30"
                       >
                         Remove
@@ -610,7 +649,7 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={useMyLocation}
+                  onClick={getMyLocation}
                   className="rounded-2xl bg-white/20 px-3 py-2 text-sm font-semibold text-white ring-1 ring-white/40 hover:bg-white/30"
                 >
                   Use my current location
@@ -646,7 +685,7 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
-                            onClick={useMyLocation}
+                            onClick={getMyLocation}
                             className="rounded-lg bg-white/80 px-2 py-1 text-xs font-semibold text-purple-700 ring-1 ring-black/10 hover:bg-white"
                           >
                             Retry
@@ -703,7 +742,8 @@ export default function ProfileCreation({ onComplete }: { onComplete?: (data: Pr
 }
 
 // ---------- Dev-only sanity tests (run in dev; harmless in prod builds) ----------
-if ((import.meta as any)?.env?.DEV) {
+const _importMeta = import.meta as unknown as { env?: { DEV?: boolean } };
+if (_importMeta?.env?.DEV) {
   try {
     const fakeImgOk = new File([new Uint8Array(10)], "ok.png", { type: "image/png" });
     const fakeImgBig = new File([new Uint8Array(3 * 1024 * 1024 + 1)], "big.png", { type: "image/png" });

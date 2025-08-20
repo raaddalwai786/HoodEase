@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 
 // -----------------------------------------------
 // ServiceInfo — provider selects a service + uploads up to 6 photos
@@ -21,10 +22,10 @@ const SERVICES: Array<{
   label: string;
   icon: string; // simple icon as escaped unicode
 }> = [
-  { key: "salon", label: "Salon", icon: "\u2702\uFE0F"}, // ✂️
-  { key: "food", label: "Food", icon: "\uD83C\uDF7D\uFE0F"}, // 🍽️
-  { key: "tutor", label: "Tutor", icon: "\uD83D\uDCDA"}, // 📚
-  { key: "tailoring", label: "Tailoring", icon: "\uD83E\uDDF5"}, // 🧵
+  { key: "salon", label: "Salon", icon: "\u2702\uFE0F" }, // ✂️
+  { key: "food", label: "Food", icon: "\uD83C\uDF7D\uFE0F" }, // 🍽️
+  { key: "tutor", label: "Tutor", icon: "\uD83D\uDCDA" }, // 📚
+  { key: "tailoring", label: "Tailoring", icon: "\uD83E\uDDF5" }, // 🧵
 ];
 
 const MAX_PHOTOS = 6;
@@ -48,7 +49,9 @@ function MessageBanner({
   return (
     <div className={`mb-4 flex items-start justify-between gap-3 rounded-2xl px-4 py-3 ring-1 ${classes}`}>
       <p className="text-sm leading-5">{text}</p>
-      <button onClick={onClose} className="rounded-md px-2 text-xs ring-1 ring-white/30 hover:bg-white/10" aria-label="Dismiss">✕</button>
+      <button onClick={onClose} className="rounded-md px-2 text-xs ring-1 ring-white/30 hover:bg-white/10" aria-label="Dismiss">
+        ✕
+      </button>
     </div>
   );
 }
@@ -60,7 +63,10 @@ function isValidImage(file: File) {
 function useObjectUrl(file: File | null) {
   const [url, setUrl] = useState<string>("");
   useEffect(() => {
-    if (!file) { setUrl(""); return; }
+    if (!file) {
+      setUrl("");
+      return;
+    }
     const u = URL.createObjectURL(file);
     setUrl(u);
     return () => URL.revokeObjectURL(u);
@@ -85,7 +91,7 @@ function SquareTile({
   return (
     <div className="relative w-full">
       {/* Fallback ensures a 1:1 box in all environments */}
-      <span style={{ display: 'block', paddingTop: '100%' }} aria-hidden="true" />
+      <span style={{ display: "block", paddingTop: "100%" }} aria-hidden="true" />
       <button
         type="button"
         onClick={onClick}
@@ -104,9 +110,17 @@ function PhotoThumb({ file, onRemove }: { file: File; onRemove: () => void }) {
   return (
     <div className="relative w-full overflow-hidden rounded-xl ring-1 ring-white/30">
       {/* Fallback square */}
-      <span style={{ display: 'block', paddingTop: '100%' }} aria-hidden="true" />
+      <span style={{ display: "block", paddingTop: "100%" }} aria-hidden="true" />
       {url ? (
-        <img src={url} alt={file.name} className="absolute inset-0 h-full w-full object-cover" />
+        <Image
+          src={url}
+          alt={file.name}
+          fill
+          className="absolute inset-0 object-cover"
+          // Blob/object URLs need unoptimized; we don't want Next to fetch them server-side
+          unoptimized
+          priority={false}
+        />
       ) : (
         <div className="absolute inset-0 grid place-items-center text-xs text-white/70">Loading…</div>
       )}
@@ -128,19 +142,26 @@ function AddPhotoTile({ onFiles }: { onFiles: (files: FileList | File[]) => void
   const [dragOver, setDragOver] = useState(false);
   return (
     <div className="relative w-full">
-      <span style={{ display: 'block', paddingTop: '100%' }} aria-hidden="true" />
+      <span style={{ display: "block", paddingTop: "100%" }} aria-hidden="true" />
       <div
         className={`absolute inset-0 grid place-items-center rounded-xl border-2 border-dashed transition ${
-          dragOver ? 'border-white bg-white/10' : 'border-white/40 bg-white/5 hover:bg-white/10'
+          dragOver ? "border-white bg-white/10" : "border-white/40 bg-white/5 hover:bg-white/10"
         } cursor-pointer`}
         role="button"
         tabIndex={0}
         aria-label="Add more photos"
         onClick={() => inputRef.current?.click()}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ' ? inputRef.current?.click() : undefined)}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onKeyDown={(e) => (e.key === "Enter" || e.key === " " ? inputRef.current?.click() : undefined)}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); onFiles(e.dataTransfer.files); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          onFiles(e.dataTransfer.files);
+        }}
       >
         <div className="text-center">
           <div className="text-2xl leading-none text-white/90">+</div>
@@ -160,15 +181,13 @@ function AddPhotoTile({ onFiles }: { onFiles: (files: FileList | File[]) => void
 }
 
 // Responsive grid fallback (if Tailwind grid utilities are not generated in your build)
-function ResponsiveGrid(
-  { children, className = "", ...rest }: React.HTMLAttributes<HTMLDivElement>
-) {
+function ResponsiveGrid({ children, className = "", ...rest }: React.HTMLAttributes<HTMLDivElement>) {
   const [cols, setCols] = useState(2);
   useEffect(() => {
-    const calc = () => setCols((typeof window !== 'undefined' && window.innerWidth >= 640) ? 4 : 2);
+    const calc = () => setCols(typeof window !== "undefined" && window.innerWidth >= 640 ? 4 : 2);
     calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
+    window.addEventListener("resize", calc);
+    return () => window.removeEventListener("resize", calc);
   }, []);
   return (
     <div
@@ -186,9 +205,16 @@ function DropZone({ onFiles }: { onFiles: (files: FileList | File[]) => void }) 
   const [dragOver, setDragOver] = useState(false);
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
       onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => { e.preventDefault(); setDragOver(false); onFiles(e.dataTransfer.files); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false);
+        onFiles(e.dataTransfer.files);
+      }}
       onClick={() => inputRef.current?.click()}
       role="button"
       tabIndex={0}
@@ -199,7 +225,7 @@ function DropZone({ onFiles }: { onFiles: (files: FileList | File[]) => void }) 
       aria-label="Add service photos"
     >
       {/* Force vertical stacking and centering even if some global CSS interferes */}
-      <div className="text-center" style={{ display: 'grid', placeItems: 'center', rowGap: '0.25rem' }}>
+      <div className="text-center" style={{ display: "grid", placeItems: "center", rowGap: "0.25rem" }}>
         <div className="text-white/90">Click to upload or drag & drop</div>
         <div className="text-xs text-white/70">JPEG/PNG (max 6 photos, ≤ 5MB each)</div>
       </div>
@@ -263,11 +289,17 @@ export default function ServiceInfo({
     setMsg({ type: "success", text: "Service info saved. Redirecting to dashboard…" });
 
     // Optional callback to let parent persist
-    try { onSubmit?.(payload); } catch {}
+    try {
+      onSubmit?.(payload);
+    } catch {}
 
     // Redirect to /dashboard (SPA router can map this path; hard nav fallback works too)
     window.setTimeout(() => {
-      try { window.location.assign("/dashboard"); } catch { (window as any).location.href = "/dashboard"; }
+      try {
+        window.location.assign("/dashboard");
+      } catch {
+        (window as unknown as { location: { href: string } }).location.href = "/dashboard";
+      }
     }, 250);
   };
 
@@ -299,11 +331,12 @@ export default function ServiceInfo({
                       onClick={() => setService(s.key)}
                       ariaPressed={active}
                       ariaLabel={s.label}
-                      className={`${active ? "border-white/60 bg-white/20 ring-white/60" : "border-white/20 bg-white/10 ring-white/20 hover:bg-white/15"} px-3 py-3 transition text-white/90 focus:ring-2 focus:ring-fuchsia-400`}
+                      className={`${
+                        active ? "border-white/60 bg-white/20 ring-white/60" : "border-white/20 bg-white/10 ring-white/20 hover:bg-white/15"
+                      } px-3 py-3 transition text-white/90 focus:ring-2 focus:ring-fuchsia-400`}
                     >
                       <span className="text-2xl leading-none">{s.icon}</span>
                       <span className="mt-1 text-sm font-semibold">{s.label}</span>
-                      
                     </SquareTile>
                   );
                 })}
@@ -314,11 +347,13 @@ export default function ServiceInfo({
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <span className="block text-sm font-medium text-white/80">Add photos</span>
-                <span className="text-xs text-white/70">{photos.length}/{MAX_PHOTOS}</span>
+                <span className="text-xs text-white/70">
+                  {photos.length}/{MAX_PHOTOS}
+                </span>
               </div>
 
               {photos.length > 0 ? (
-                <div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.75rem' }}>
+                <div className="mb-3" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "0.75rem" }}>
                   {photos.map((f, i) => (
                     <PhotoThumb key={`${f.name}-${i}`} file={f} onRemove={() => removeAt(i)} />
                   ))}
@@ -328,7 +363,9 @@ export default function ServiceInfo({
                 remaining > 0 && <DropZone onFiles={tryAddFiles} />
               )}
               {remaining === 0 && (
-                <div className="rounded-2xl mt-3 bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/20">You have added the maximum of {MAX_PHOTOS} photos.</div>
+                <div className="rounded-2xl mt-3 bg-white/10 px-3 py-2 text-xs text-white/80 ring-1 ring-white/20">
+                  You have added the maximum of {MAX_PHOTOS} photos.
+                </div>
               )}
             </div>
 
@@ -350,7 +387,8 @@ export default function ServiceInfo({
 }
 
 // --------- Dev-only lightweight tests (safe in prod) ---------
-if ((import.meta as any)?.env?.DEV) {
+const _importMeta = import.meta as unknown as { env?: { DEV?: boolean } };
+if (_importMeta?.env?.DEV) {
   try {
     const smallImg = new File([new Uint8Array(10)], "x.png", { type: "image/png" });
     const bigImg = new File([new Uint8Array(MAX_SIZE + 1)], "big.png", { type: "image/png" });
@@ -360,7 +398,7 @@ if ((import.meta as any)?.env?.DEV) {
 
     // Extra sanity checks for services list
     console.assert(SERVICES.length === 4, "SERVICES should contain 4 entries");
-    console.assert(SERVICES.every(s => typeof s.icon === 'string' && s.icon.length > 0), "Each service should have a non-empty icon string");
+    console.assert(SERVICES.every((s) => typeof s.icon === "string" && s.icon.length > 0), "Each service should have a non-empty icon string");
   } catch {
     // Some environments may not support File() ctor; ignore.
   }
