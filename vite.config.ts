@@ -15,16 +15,7 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? '/static/' : '/',
 
   build: {
-    // build straight into your Django project's static/ directory
-    outDir: path.resolve(__dirname, '../../static'),
-    emptyOutDir: false, // keep other files in static/
-
-    rollupOptions: {
-      output: {
-        entryFileNames: `hoodease.js`,
-        assetFileNames: `hoodease.[ext]`, // -> hoodease.css
-        chunkFileNames: `hoodease-[name].js`,
-      },
-    },
-  },
+  outDir: 'dist',     // default
+  emptyOutDir: true,
+},
 }))
