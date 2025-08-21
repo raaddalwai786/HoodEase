@@ -1,27 +1,163 @@
-import { useState } from "react";
-import React from "react";
+import { useState, useRef } from "react";
 import ProfileCreation from "./ProfileCreation";
+
+type Msg = { type: "success" | "error" | "info"; text: string } | null;
 
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
 
-  const [aadhaar, setAadhaar] = useState(["", "", ""]);
+  const [aadhaar, setAadhaar] = useState<string[]>(["", "", ""]); // 3 groups x 4
   const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
-  const [aadhaarOtp, setAadhaarOtp] = useState(["", "", "", "", "", ""]);
+  const [aadhaarOtp, setAadhaarOtp] = useState<string[]>(["", "", "", "", "", ""]);
   const [aadhaarVerified, setAadhaarVerified] = useState(false);
 
-  // inline message
-  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null);
+  const [message, setMessage] = useState<Msg>(null);
 
-  // handlers (simplified, with inline messages instead of alerts)
+  // Refs for focus management
+  const otpRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const aadhaarRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const aadhaarOtpRefs = useRef<Array<HTMLInputElement | null>>([]);
+
+  const onlyDigits = (s: string) => s.replace(/\D/g, "");
+
+  const focusAt = (refs: Array<HTMLInputElement | null>, i: number) => {
+    const el = refs[i];
+    if (el) {
+      el.focus();
+      el.select?.();
+    }
+  };
+
+  // -------- Phone OTP: per-digit --------
+  const handleOtpChange = (idx: number, raw: string) => {
+    const v = onlyDigits(raw).slice(0, 1);
+    const next = [...otp];
+    next[idx] = v;
+    setOtp(next);
+    if (v && idx < otpRefs.current.length - 1) {
+      focusAt(otpRefs.current, idx + 1);
+    }
+  };
+
+  const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const key = e.key;
+    if (key === "Backspace" && !otp[idx] && idx > 0) {
+      e.preventDefault();
+      const next = [...otp];
+      next[idx - 1] = "";
+      setOtp(next);
+      focusAt(otpRefs.current, idx - 1);
+    } else if (key === "ArrowLeft" && idx > 0) {
+      focusAt(otpRefs.current, idx - 1);
+    } else if (key === "ArrowRight" && idx < otpRefs.current.length - 1) {
+      focusAt(otpRefs.current, idx + 1);
+    }
+  };
+
+  const handleOtpPaste = (idx: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const digits = onlyDigits(e.clipboardData.getData("text")).slice(0, otp.length - idx);
+    if (!digits) return;
+    const next = [...otp];
+    for (let i = 0; i < digits.length; i++) next[idx + i] = digits[i];
+    setOtp(next);
+    const last = Math.min(idx + digits.length, otpRefs.current.length - 1);
+    focusAt(otpRefs.current, last);
+  };
+
+  // -------- Aadhaar number: 3 groups x 4 --------
+  const handleAadhaarChange = (idx: number, raw: string) => {
+    const v = onlyDigits(raw).slice(0, 4);
+    const next = [...aadhaar];
+    next[idx] = v;
+    setAadhaar(next);
+    if (v.length === 4 && idx < aadhaarRefs.current.length - 1) {
+      focusAt(aadhaarRefs.current, idx + 1);
+    }
+  };
+
+  const handleAadhaarKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const key = e.key;
+    if (key === "Backspace" && !aadhaar[idx] && idx > 0) {
+      e.preventDefault();
+      const next = [...aadhaar];
+      next[idx - 1] = "";
+      setAadhaar(next);
+      focusAt(aadhaarRefs.current, idx - 1);
+    } else if (key === "ArrowLeft" && idx > 0) {
+      focusAt(aadhaarRefs.current, idx - 1);
+    } else if (key === "ArrowRight" && idx < aadhaarRefs.current.length - 1) {
+      focusAt(aadhaarRefs.current, idx + 1);
+    }
+  };
+
+  const handleAadhaarPaste = (idx: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const digits = onlyDigits(e.clipboardData.getData("text")).slice(0, 12 - idx * 4);
+    if (!digits) return;
+    const groups = [...aadhaar];
+    let k = 0;
+    for (let g = idx; g < 3; g++) {
+      const space = 4;
+      const take = Math.min(space, digits.length - k);
+      groups[g] = digits.slice(k, k + take);
+      k += take;
+      if (k >= digits.length) break;
+    }
+    setAadhaar(groups);
+    const targetGroup =
+      groups[idx].length < 4 ? idx : groups[idx + 1]?.length < 4 ? idx + 1 : Math.min(2, idx + 2);
+    focusAt(aadhaarRefs.current, targetGroup);
+  };
+
+  // -------- Aadhaar OTP: per-digit --------
+  const handleAadhaarOtpChange = (idx: number, raw: string) => {
+    const v = onlyDigits(raw).slice(0, 1);
+    const next = [...aadhaarOtp];
+    next[idx] = v;
+    setAadhaarOtp(next);
+    if (v && idx < aadhaarOtpRefs.current.length - 1) {
+      focusAt(aadhaarOtpRefs.current, idx + 1);
+    }
+  };
+
+  const handleAadhaarOtpKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const key = e.key;
+    if (key === "Backspace" && !aadhaarOtp[idx] && idx > 0) {
+      e.preventDefault();
+      const next = [...aadhaarOtp];
+      next[idx - 1] = "";
+      setAadhaarOtp(next);
+      focusAt(aadhaarOtpRefs.current, idx - 1);
+    } else if (key === "ArrowLeft" && idx > 0) {
+      focusAt(aadhaarOtpRefs.current, idx - 1);
+    } else if (key === "ArrowRight" && idx < aadhaarOtpRefs.current.length - 1) {
+      focusAt(aadhaarOtpRefs.current, idx + 1);
+    }
+  };
+
+  const handleAadhaarOtpPaste = (idx: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const digits = onlyDigits(e.clipboardData.getData("text")).slice(0, aadhaarOtp.length - idx);
+    if (!digits) return;
+    const next = [...aadhaarOtp];
+    for (let i = 0; i < digits.length; i++) next[idx + i] = digits[i];
+    setAadhaarOtp(next);
+    const last = Math.min(idx + digits.length, aadhaarOtpRefs.current.length - 1);
+    focusAt(aadhaarOtpRefs.current, last);
+  };
+
+  // -------- existing handlers (unchanged) --------
   const handleSendOtp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!phone) return;
     setMessage({ type: "info", text: `OTP sent to ${phone}` });
     setOtpSent(true);
+    // focus first OTP cell
+    setTimeout(() => focusAt(otpRefs.current, 0), 0);
   };
 
   const handleVerifyOtp = (e: React.FormEvent) => {
@@ -44,6 +180,7 @@ export default function LoginPage() {
     }
     setMessage({ type: "info", text: `Aadhaar OTP sent` });
     setAadhaarOtpSent(true);
+    setTimeout(() => focusAt(aadhaarOtpRefs.current, 0), 0);
   };
 
   const handleVerifyAadhaarOtp = (e: React.FormEvent) => {
@@ -57,7 +194,6 @@ export default function LoginPage() {
     }
   };
 
-  // If Aadhaar verified, redirect to ProfileCreation
   if (aadhaarVerified) {
     return <ProfileCreation />;
   }
@@ -107,7 +243,7 @@ export default function LoginPage() {
                     inputMode="numeric"
                     autoComplete="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, "").slice(0, 10))}
+                    onChange={(e) => setPhone(onlyDigits(e.target.value).slice(0, 10))}
                     placeholder="98765 43210"
                     className="w-full rounded-2xl bg-transparent px-3 py-3 text-gray-900 placeholder:text-gray-400 focus:outline-none"
                     aria-label="Phone number"
@@ -133,15 +269,15 @@ export default function LoginPage() {
                   {otp.map((digit, index) => (
                     <input
                       key={index}
+                      ref={(el) => { otpRefs.current[index] = el; }}
                       type="tel"
                       inputMode="numeric"
                       maxLength={1}
                       value={digit}
-                      onChange={(e) => {
-                        const next = [...otp];
-                        next[index] = e.target.value;
-                        setOtp(next);
-                      }}
+                      onChange={(e) => handleOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(index, e)}
+                      onPaste={(e) => handleOtpPaste(index, e)}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 text-center text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full"
                     />
                   ))}
@@ -156,30 +292,30 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Aadhaar */}
+          {/* Aadhaar number */}
           {otpVerified && !aadhaarOtpSent && (
             <form onSubmit={handleSendAadhaarOtp} className="mt-2 space-y-5">
               <label className="block">
                 <span className="mb-2 block text-sm font-medium text-white/80">Enter Aadhaar Number</span>
                 <div className="flex items-center justify-between gap-2 sm:gap-3">
                   {aadhaar.map((group, index) => (
-  <React.Fragment key={index}>
-    <input
-      type="tel"
-      inputMode="numeric"
-      maxLength={4}
-      value={group}
-      onChange={(e) => {
-        const next = [...aadhaar];
-        next[index] = e.target.value;
-        setAadhaar(next);
-      }}
-      placeholder={index === 0 ? "1234" : index === 1 ? "5678" : "9012"}
-      className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 px-3 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full tracking-widest text-center"
-    />
-    {index < 2 && <span className="text-white text-xl font-bold">-</span>}
-  </React.Fragment>
-))}
+                    <div key={index} className="flex items-center gap-2 sm:gap-3 w-full">
+                      <input
+                        ref={(el) => { aadhaarRefs.current[index] = el; }}
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={group}
+                        onChange={(e) => handleAadhaarChange(index, e.target.value)}
+                        onKeyDown={(e) => handleAadhaarKeyDown(index, e)}
+                        onPaste={(e) => handleAadhaarPaste(index, e)}
+                        onFocus={(e) => e.currentTarget.select()}
+                        placeholder={index === 0 ? "1234" : index === 1 ? "5678" : "9012"}
+                        className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 px-3 text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full tracking-widest text-center"
+                      />
+                      {index < 2 && <span className="text-white text-xl font-bold select-none">-</span>}
+                    </div>
+                  ))}
                 </div>
               </label>
               <button
@@ -200,15 +336,15 @@ export default function LoginPage() {
                   {aadhaarOtp.map((digit, index) => (
                     <input
                       key={index}
+                      ref={(el) => { aadhaarOtpRefs.current[index] = el; }}
                       type="tel"
                       inputMode="numeric"
                       maxLength={1}
                       value={digit}
-                      onChange={(e) => {
-                        const next = [...aadhaarOtp];
-                        next[index] = e.target.value;
-                        setAadhaarOtp(next);
-                      }}
+                      onChange={(e) => handleAadhaarOtpChange(index, e.target.value)}
+                      onKeyDown={(e) => handleAadhaarOtpKeyDown(index, e)}
+                      onPaste={(e) => handleAadhaarOtpPaste(index, e)}
+                      onFocus={(e) => e.currentTarget.select()}
                       className="h-12 rounded-xl bg-white/90 ring-1 ring-black/5 text-center text-lg font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-fuchsia-400 w-full"
                     />
                   ))}
